@@ -10,6 +10,26 @@ package bluetooth
 #include "nrf_nvic.h"
 #include "ble.h"
 #include "ble_gap.h"
+#include <string.h>
+
+// reply_sec_params_just_works responds to BLE_GAP_EVT_SEC_PARAMS_REQUEST with
+// "Just Works" pairing (no bonding, no MITM, IO caps = None). The entire reply
+// is handled in C to avoid TinyGo allocating the ble_gap_sec_params_t struct
+// on the heap, which would panic with "heap alloc in interrupt".
+static void reply_sec_params_just_works(uint16_t conn_handle) {
+    ble_gap_sec_params_t sec_params;
+    memset(&sec_params, 0, sizeof(sec_params));
+    sec_params.bond         = 0;
+    sec_params.mitm         = 0;
+    sec_params.lesc         = 0;
+    sec_params.keypress     = 0;
+    sec_params.io_caps      = BLE_GAP_IO_CAPS_NONE;
+    sec_params.oob          = 0;
+    sec_params.min_key_size = 7;
+    sec_params.max_key_size = 16;
+    // keyset is NULL because bond=0; the SoftDevice ignores it in that case.
+    sd_ble_gap_sec_params_reply(conn_handle, BLE_GAP_SEC_STATUS_SUCCESS, &sec_params, NULL);
+}
 */
 import "C"
 
@@ -71,6 +91,24 @@ func handleEvent() {
 			C.sd_ble_gap_phy_update(gapEvent.conn_handle, &phyUpdateResponse)
 		case C.BLE_GAP_EVT_PHY_UPDATE:
 			// ignore confirmation of phy successfully updated
+		case C.BLE_GAP_EVT_SEC_PARAMS_REQUEST:
+			// The peer (central) wants to pair. The reply is handled in C via
+			// reply_sec_params_just_works() to avoid TinyGo allocating
+			// ble_gap_sec_params_t on the heap, which would panic with
+			// "heap alloc in interrupt". Without this reply, the SoftDevice
+			// times out and sends SMP Pairing Failed; BlueZ surfaces this as
+			// "Authentication Canceled".
+			if debug {
+				println("evt: sec_params_request — replying with Just Works")
+			}
+			C.reply_sec_params_just_works(gapEvent.conn_handle)
+		case C.BLE_GAP_EVT_AUTH_STATUS:
+			// Pairing/bonding procedure finished. No action required for
+			// Just Works without bonding.
+			if debug {
+				authStatus := gapEvent.params.unionfield_auth_status()
+				println("evt: auth_status =", authStatus.auth_status)
+			}
 		default:
 			if debug {
 				println("unknown GAP event:", id)
