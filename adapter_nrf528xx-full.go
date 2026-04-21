@@ -35,6 +35,13 @@ func handleEvent() {
 					println("evt: connected in peripheral role")
 				}
 				currentConnection.handle.Reg = uint16(gapEvent.conn_handle)
+				// Initialise system attributes (including CCCDs) immediately on
+				// connect. Without this, sd_ble_gatts_hvx returns
+				// BLE_ERROR_GATTS_SYS_ATTR_MISSING (0x3401) for every notification
+				// until the central triggers BLE_GATTS_EVT_SYS_ATTR_MISSING by
+				// performing an ATT operation — which may never happen if the
+				// peripheral notifies before the central reads anything.
+				C.sd_ble_gatts_sys_attr_set(gapEvent.conn_handle, nil, 0, 0)
 				DefaultAdapter.connectHandler(device, true)
 			case C.BLE_GAP_ROLE_CENTRAL:
 				if debug {
