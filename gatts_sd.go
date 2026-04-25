@@ -58,6 +58,15 @@ func (a *Adapter) AddService(service *Service) error {
 		if errCode != 0 {
 			return Error(errCode)
 		}
+		// max_len controls the maximum ATT attribute value size the SoftDevice
+		// will accept for writes and allocates for BLE_GATTS_VLOC_STACK storage.
+		// Default is 20 (legacy BLE 4.0 limit). Call SetCharacteristicMaxLen to
+		// increase this; use SetGATTSAttrTabSize to enlarge the attribute table
+		// if necessary (each characteristic consumes max_len bytes in the table).
+		maxLen := C.uint16_t(20)
+		if sdCfgCharMaxLen > 0 {
+			maxLen = C.uint16_t(sdCfgCharMaxLen)
+		}
 		value := C.ble_gatts_attr_t{
 			p_uuid: &charUUID,
 			p_attr_md: &C.ble_gatts_attr_md_t{
@@ -66,7 +75,7 @@ func (a *Adapter) AddService(service *Service) error {
 			},
 			init_len:  C.uint16_t(len(char.Value)),
 			init_offs: 0,
-			max_len:   20, // This is a conservative maximum length.
+			max_len:   maxLen,
 		}
 		if len(char.Value) != 0 {
 			value.p_value = (*C.uint8_t)(unsafe.Pointer(&char.Value[0]))

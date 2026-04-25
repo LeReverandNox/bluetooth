@@ -62,13 +62,17 @@ var clockConfigXtal C.nrf_clock_lf_cfg_t = C.nrf_clock_lf_cfg_t{
 //go:extern __app_ram_base
 var appRAMBase [0]uint32
 
-// sdCfgAttrTabSize and sdCfgHVXQueueSize hold values requested via
-// SetGATTSAttrTabSize and SetHVXQueueSize. A zero value means "use the
-// SoftDevice default". They are applied in enable() in the only window where
-// sd_ble_cfg_set is valid: after sd_softdevice_enable, before sd_ble_enable.
+// sdCfgAttrTabSize, sdCfgHVXQueueSize, and sdCfgCharMaxLen hold values
+// requested via SetGATTSAttrTabSize, SetHVXQueueSize, and
+// SetCharacteristicMaxLen respectively. A zero value means "use the
+// SoftDevice / library default".
+// AttrTabSize and HVXQueueSize are applied in enable() via sd_ble_cfg_set,
+// which must be called after sd_softdevice_enable() and before sd_ble_enable().
+// CharMaxLen is read directly by AddService() and has no timing constraint.
 var (
 	sdCfgAttrTabSize  uint32
 	sdCfgHVXQueueSize uint8
+	sdCfgCharMaxLen   uint16
 )
 
 func (a *Adapter) enable() error {
@@ -122,6 +126,23 @@ func (a *Adapter) SetGATTSAttrTabSize(sz uint32) {
 // This method has no effect if called after Enable().
 func (a *Adapter) SetHVXQueueSize(n uint8) {
 	sdCfgHVXQueueSize = n
+}
+
+// SetCharacteristicMaxLen sets the maximum value length (in bytes) allocated
+// per characteristic in the GATTS attribute table. The default is 20, which
+// matches the legacy Bluetooth 4.0 ATT payload limit.
+//
+// With BLE_GATTS_VLOC_STACK (used by this library), the SoftDevice
+// pre-allocates exactly max_len bytes per characteristic in the attribute
+// table, so increasing this value increases attribute table memory usage.
+// Applications that use Data Length Extension (DLE) and want to receive or
+// send characteristic values larger than 20 bytes should set this to 244
+// (the maximum ATT payload with DLE: ATT MTU 247 − 3-byte header) and
+// call SetGATTSAttrTabSize to enlarge the attribute table accordingly.
+//
+// This method may be called at any time before AddService().
+func (a *Adapter) SetCharacteristicMaxLen(size uint16) {
+	sdCfgCharMaxLen = size
 }
 
 func (a *Adapter) Address() (MACAddress, error) {
