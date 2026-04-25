@@ -30,6 +30,13 @@ var (
 // There can only be one connection at a time in the default configuration.
 var currentConnection = volatileHandle{handle: volatile.Register16{C.BLE_CONN_HANDLE_INVALID}}
 
+// IsConnected reports whether a BLE central is currently connected to this
+// peripheral. It reads the connection handle that is set by the GAP event
+// handler and is safe to call from any goroutine.
+func (a *Adapter) IsConnected() bool {
+	return currentConnection.Get() != C.BLE_CONN_HANDLE_INVALID
+}
+
 // Globally allocated buffer for incoming SoftDevice events.
 var eventBuf struct {
 	C.ble_evt_t
